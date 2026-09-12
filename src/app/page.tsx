@@ -61,7 +61,7 @@ export default function Home() {
                 <span className="size-[7px] rounded-full bg-brand" />
                 진료시간 내 순차적으로 연락드립니다
               </div>
-              <h1 className="mt-[26px] text-[length:clamp(40px,7.2vw,78px)] leading-[1.04] font-bold tracking-[-0.045em] text-balance">
+              <h1 className="mt-[26px] text-[length:clamp(20px,3.6vw,39px)] leading-[1.04] font-bold tracking-[-0.045em] text-balance">
                 통증은 참는 것이
                 <br />
                 아니라 치료하는 것
