@@ -8,6 +8,7 @@
 
 ## 기술 스택
 - Next.js 16 (App Router, TypeScript, Tailwind v4), 글꼴 Pretendard
+- 관리자 화면: Ant Design 6 — `/admin` 아래에서만 불러오므로 랜딩에는 영향 없음. Tailwind 와는 `globals.css` 첫 줄의 층 순서(`@layer theme, base, antd, components, utilities`)로 공존
 - Prisma 7 (`@prisma/adapter-pg`) — DB 구조·변경 이력
 - Supabase — 로컬은 Supabase CLI 가 Docker 로 띄움 (Postgres·Auth·Studio)
 
@@ -27,7 +28,7 @@ npm run dev                # http://localhost:3000
 |---|---|
 | `/` | 랜딩 (Hero·증상·원장·진료·과정·둘러보기·오시는 길·FAQ·상담 신청·푸터) |
 | `/admin/login` | 관리자 로그인 (Supabase Auth 이메일·비밀번호) |
-| `/admin` | 상담 목록 · 상태 탭(신규/연락중/완료/부재중/보류) · 스팸 탭 · 상태·메모 저장 |
+| `/admin` | 신규 건수 배너 · 탭 제목 건수 · 60초 자동 갱신 · 상태 탭(신규/연락중/완료/부재중/보류/스팸) · 기간(기본 최근 1개월)·이름/연락처 검색 · 20건씩 쪽 나눔 · 목록에서 상태 바로 저장 · 줄 클릭 시 상세 창(유입 정보·상태·메모) |
 
 로컬 관리자 계정은 위 명령으로 각자 만든다. 비밀번호는 저장소에 적지 않는다.
 
@@ -63,12 +64,12 @@ src/lib/consultation.ts     상담 분야·희망 시간·검사 규칙·스팸 
 src/components/landing/     상담폼 · FAQ · 둘러보기 · 주소 복사 · 개인정보 창
 src/app/page.tsx            랜딩 본문
 src/app/api/consultations/  상담 신청 저장 (POST)
-src/app/admin/              관리자 로그인·목록
+src/app/admin/              관리자 로그인·목록·상세 창 (antd), shared.ts = 필터·한국 시각 공용 규칙
 prisma/                     schema.prisma, migrations/
 ```
 
 ## PRD 대비 남은 일
-- 관리자: 신규 건수 배너·탭 제목 건수·60초 자동 갱신, 상세 화면, 소프트 삭제, 엑셀 다운로드, 처리 이력 기록
+- 관리자: 소프트 삭제, 엑셀 다운로드(+다운로드 기록), 처리 이력 기록 — 셋 다 DB 에 관리 항목·기록 영역을 새로 만들어야 함
 - 관리자 로그인: 아이디 방식·5회 실패 잠금·2시간 자동 로그아웃 (지금은 Supabase 이메일 로그인)
 - `/privacy`·`/price` 별도 페이지, 보유기간 경과 자동 파기
 - 네이버 지도, GA4·네이버 전환 집계, 구조화 데이터·sitemap

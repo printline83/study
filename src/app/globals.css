@@ -1,3 +1,5 @@
+/* 디자인 규칙 층 순서 — 관리자 화면 antd 를 Tailwind 기본값(base)과 유틸리티 사이에 둔다 */
+@layer theme, base, antd, components, utilities;
 @import "tailwindcss";
 
 /* 디자인 정본(한의원 랜딩.dc.html) 색·글꼴 */
@@ -37,9 +39,4 @@
 @utility no-scrollbar {
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
-}
-
-/* 관리자 화면 입력칸 */
-@utility input {
-  @apply w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20;
 }

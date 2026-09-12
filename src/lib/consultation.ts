@@ -19,6 +19,8 @@ export const PREFERRED_TIMES = [
 ] as const;
 
 export const CONTENT_MAX = 1000;
+/** 관리자 메모 최대 글자 수 */
+export const MEMO_MAX = 1000;
 /** SEC-02: 폼이 뜬 뒤 이 시간 안에 제출되면 봇으로 본다 */
 export const MIN_FILL_MS = 3000;
 /** SEC-03: 같은 IP 10분 내 3건 초과 차단 */

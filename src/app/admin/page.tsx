@@ -1,132 +1,79 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
-import { STATUS_LABEL, formatPhoneDisplay, preferredTimeLabel } from "@/lib/consultation";
-import { ConsultationStatus } from "@/generated/prisma/enums";
-import { updateConsultation } from "./actions";
-import { signOut } from "./login/actions";
+import type { Prisma } from "@/generated/prisma/client";
+import type { ConsultationStatus } from "@/generated/prisma/enums";
+import { ConsultationBoard } from "./ConsultationBoard";
+import { PAGE_SIZE, STATUSES, parseFilters, type AdminFilters } from "./shared";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "상담 관리 | 한결한의원", robots: { index: false, follow: false } };
 
-const STATUS_BADGE: Record<string, string> = {
-  NEW: "bg-red-100 text-red-700",
-  CONTACTING: "bg-amber-100 text-amber-800",
-  DONE: "bg-green-100 text-green-800",
-  ABSENT: "bg-neutral-200 text-neutral-700",
-  HOLD: "bg-blue-100 text-blue-800",
-};
+// 제목·본문이 한 요청 안에서 로그인 확인·건수 조회를 한 번만 하도록 묶음
+const getAdmin = cache(requireAdmin);
+/** 확인하지 않은 신규 = 스팸이 아닌 '신규' 전체. 기간·검색과 무관 (PRD AR-02-1) */
+const getNewCount = cache(() => prisma.consultation.count({ where: { status: "NEW", isSpam: false } }));
 
-const pill = (active: boolean) =>
-  `rounded-full px-3 py-1 ${active ? "bg-brand text-white hover:text-white" : "bg-white ring-1 ring-neutral-200"}`;
+/** 탭 제목에 신규 건수 — 창을 켜둔 채로도 알 수 있게 (PRD AR-02-2) */
+export async function generateMetadata(): Promise<Metadata> {
+  await getAdmin();
+  const n = await getNewCount();
+  return { title: `${n > 0 ? `(${n}) ` : ""}상담 관리 | 한결한의원`, robots: { index: false, follow: false } };
+}
+
+/** 기간(한국 시각 하루 전체)·이름/연락처 검색 조건 */
+function baseWhere(f: AdminFilters): Prisma.ConsultationWhereInput {
+  const where: Prisma.ConsultationWhereInput = {};
+  if (f.from && f.to) {
+    where.createdAt = { gte: new Date(`${f.from}T00:00:00+09:00`), lte: new Date(`${f.to}T23:59:59.999+09:00`) };
+  }
+  if (f.q) {
+    const digits = f.q.replace(/\D/g, "");
+    where.OR = [{ name: { contains: f.q, mode: "insensitive" } }, ...(digits ? [{ phone: { contains: digits } }] : [])];
+  }
+  return where;
+}
 
 export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
-  const user = await requireAdmin();
-  const { status } = await searchParams;
-  const spamTab = status === "SPAM";
-  const filter =
-    typeof status === "string" && status in ConsultationStatus ? (status as ConsultationStatus) : undefined;
+  const user = await getAdmin();
+  const filters = parseFilters(await searchParams);
+  const base = baseWhere(filters);
 
-  const [items, counts, spamCount] = await Promise.all([
-    prisma.consultation.findMany({
-      where: spamTab ? { isSpam: true } : { isSpam: false, ...(filter ? { status: filter } : {}) },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    }),
-    prisma.consultation.groupBy({ by: ["status"], where: { isSpam: false }, _count: { _all: true } }),
-    prisma.consultation.count({ where: { isSpam: true } }),
+  const [newCount, grouped, spamCount] = await Promise.all([
+    getNewCount(),
+    prisma.consultation.groupBy({ by: ["status"], where: { ...base, isSpam: false }, _count: { _all: true } }),
+    prisma.consultation.count({ where: { ...base, isSpam: true } }),
   ]);
-  const countOf = (s: string) => counts.find((c) => c.status === s)?._count._all ?? 0;
-  const total = counts.reduce((a, c) => a + c._count._all, 0);
+  const counts = Object.fromEntries(
+    STATUSES.map((s) => [s, grouped.find((g) => g.status === s)?._count._all ?? 0]),
+  ) as Record<ConsultationStatus, number>;
+  const allCount = STATUSES.reduce((sum, s) => sum + counts[s], 0);
+
+  const { tab } = filters;
+  const tabTotal = tab === "ALL" ? allCount : tab === "SPAM" ? spamCount : counts[tab];
+  const where: Prisma.ConsultationWhereInput =
+    tab === "SPAM" ? { ...base, isSpam: true } : { ...base, isSpam: false, ...(tab === "ALL" ? {} : { status: tab }) };
+  // 조건을 바꿔 쪽 수가 줄었으면 마지막 쪽으로
+  const page = Math.min(filters.page, Math.max(1, Math.ceil(tabTotal / PAGE_SIZE)));
+
+  const rows = await prisma.consultation.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+  });
 
   return (
-    <main className="flex-1 bg-neutral-50">
-      <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <h1 className="text-lg font-bold text-brand">상담 신청 관리</h1>
-          <form action={signOut} className="flex items-center gap-3 text-sm text-neutral-500">
-            <span>{user.email}</span>
-            <button className="rounded-md border px-3 py-1 hover:bg-neutral-100">로그아웃</button>
-          </form>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-6xl px-4 py-8">
-        <nav className="flex flex-wrap gap-2 text-sm">
-          <a href="/admin" className={pill(!filter && !spamTab)}>
-            전체 {total}
-          </a>
-          {Object.values(ConsultationStatus).map((s) => (
-            <a key={s} href={`/admin?status=${s}`} className={pill(filter === s)}>
-              {STATUS_LABEL[s]} {countOf(s)}
-            </a>
-          ))}
-          <a href="/admin?status=SPAM" className={pill(spamTab)}>
-            스팸 {spamCount}
-          </a>
-        </nav>
-
-        <div className="mt-6 overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-neutral-200">
-          <table className="w-full min-w-[1040px] text-sm">
-            <thead className="bg-neutral-50 text-left text-neutral-500">
-              <tr>
-                <th className="px-4 py-3">신청일시</th>
-                <th className="px-4 py-3">성함</th>
-                <th className="px-4 py-3">연락처</th>
-                <th className="px-4 py-3">상담 분야</th>
-                <th className="px-4 py-3">희망 시간</th>
-                <th className="px-4 py-3">문의 내용</th>
-                <th className="px-4 py-3">상태 · 메모</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {items.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-neutral-400">
-                    신청 내역이 없습니다.
-                  </td>
-                </tr>
-              )}
-              {items.map((c) => (
-                <tr key={c.id} className="align-top">
-                  <td className="px-4 py-3 whitespace-nowrap text-neutral-500">
-                    {c.createdAt.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "short", timeStyle: "short" })}
-                  </td>
-                  <td className="px-4 py-3 font-medium whitespace-nowrap">{c.name}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <a href={`tel:${c.phone}`} className="text-brand underline-offset-2 hover:underline">
-                      {formatPhoneDisplay(c.phone)}
-                    </a>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">{c.category}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">{preferredTimeLabel(c.preferredTime)}</td>
-                  <td className="max-w-xs px-4 py-3 whitespace-pre-wrap text-neutral-700">{c.content ?? "-"}</td>
-                  <td className="px-4 py-3">
-                    <form action={updateConsultation} className="flex items-start gap-2">
-                      <input type="hidden" name="id" value={c.id} />
-                      <select
-                        name="status"
-                        defaultValue={c.status}
-                        className={`rounded-md px-2 py-1 text-xs font-semibold ${STATUS_BADGE[c.status]}`}
-                      >
-                        {Object.values(ConsultationStatus).map((s) => (
-                          <option key={s} value={s}>
-                            {STATUS_LABEL[s]}
-                          </option>
-                        ))}
-                      </select>
-                      <input name="memo" defaultValue={c.memo ?? ""} placeholder="관리자 메모" className="input py-1 text-xs" />
-                      <button className="rounded-md bg-brand px-3 py-1 text-xs font-semibold whitespace-nowrap text-white hover:bg-brand-dark">
-                        저장
-                      </button>
-                    </form>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </main>
+    <ConsultationBoard
+      email={user.email ?? ""}
+      filters={{ ...filters, page }}
+      rows={rows}
+      counts={counts}
+      allCount={allCount}
+      spamCount={spamCount}
+      tabTotal={tabTotal}
+      newCount={newCount}
+      fetchedAt={new Date().toISOString()}
+    />
   );
 }
