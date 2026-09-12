@@ -1,0 +1,46 @@
+// 한의원 랜딩페이지 - 데이터 모델 (PRD §5.1 tb_consult 기준)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// 처리 상태 (PRD AR-03-2)
+enum ConsultationStatus {
+  NEW        // 신규
+  CONTACTING // 연락중
+  DONE       // 완료
+  ABSENT     // 부재중
+  HOLD       // 보류
+}
+
+/// 랜딩페이지 상담 신청
+model Consultation {
+  id            String             @id @default(cuid())
+  name          String                                     // 성함
+  phone         String                                     // 연락처 (숫자만 저장)
+  category      String                                     // 상담 분야
+  content       String?                                    // 문의 내용
+  preferredTime String?            @map("preferred_time")  // 연락 희망 시간대
+  privacyAgreed Boolean            @default(true) @map("privacy_agreed")
+  status        ConsultationStatus @default(NEW)
+  memo          String?                                    // 관리자 메모
+  isSpam        Boolean            @default(false) @map("is_spam") // SEC-05 스팸 의심
+  referrer      String?                                    // 유입 경로 (FR-01-6)
+  utmSource     String?            @map("utm_source")
+  utmMedium     String?            @map("utm_medium")
+  utmCampaign   String?            @map("utm_campaign")
+  ip            String?
+  userAgent     String?            @map("user_agent")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@index([ip, createdAt])
+  @@index([phone])
+  @@map("consultations")
+}

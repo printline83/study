@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+/* 디자인 정본(한의원 랜딩.dc.html) 색·글꼴 */
+@theme {
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+
+  --color-ink: #101010;
+  --color-brand: #2f5d4a;
+  --color-brand-dark: #264c3c;
+  --color-muted: #55554f;
+  --color-sub: #6b6b64;
+  --color-line: #eceae5;
+  --color-line-strong: #dedcd6;
+  --color-surface: #fafaf8;
+  --color-chip: #f2f1ed;
+  --color-sage: #eef1ea;
+
+  --animate-rise: rise 220ms ease both;
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  body { background: #ffffff; color: var(--color-ink); -webkit-font-smoothing: antialiased; }
+  a { color: var(--color-ink); text-decoration: none; }
+  a:hover { color: var(--color-brand); }
+}
+
+/* 사진 자리 줄무늬 */
+@utility stripe-sage { background: repeating-linear-gradient(135deg, #eef1ea 0 14px, #e6ebe3 14px 28px); }
+@utility stripe-warm { background: repeating-linear-gradient(135deg, #f1eeea 0 14px, #eae6e1 14px 28px); }
+@utility stripe-stone { background: repeating-linear-gradient(135deg, #f1f0ec 0 14px, #e9e8e3 14px 28px); }
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+/* 관리자 화면 입력칸 */
+@utility input {
+  @apply w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20;
+}
